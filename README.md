@@ -5,7 +5,7 @@ A tool to measure CPU core to core latency (inter-core latency).
 Build:
 
 ```console
-g -O3 -DNDEBUG c2clat.cpp -o c2clat.exe -pthread
+gcc -O3 -DNDEBUG c2clat.cpp -o c2clat.exe -pthread
 ```
 
 or
