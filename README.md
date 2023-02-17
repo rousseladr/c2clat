@@ -5,7 +5,12 @@ A tool to measure CPU core to core latency (inter-core latency).
 Build:
 
 ```console
-g++ -O3 -DNDEBUG c2clat.cpp -o c2clat -pthread
+g -O3 -DNDEBUG c2clat.cpp -o c2clat.exe -pthread
+```
+
+or
+```console
+make
 ```
 
 Example usage:
@@ -26,7 +31,7 @@ $ ./c2clat
 Create plot using [gnuplot](http://gnuplot.sourceforge.net/):
 
 ```console
-c2clat -p | gnuplot -p
+c2clat.exe -p | gnuplot -p
 ```
 
 ![Plot of inter-core latency](https://github.com/rigtorp/c2clat/blob/master/c2clat.png)
@@ -34,7 +39,7 @@ c2clat -p | gnuplot -p
 If you want to run on a subset of cores use [taskset](https://www.man7.org/linux/man-pages/man1/taskset.1.html):
 
 ```console
-$ taskset -c 10-11 ./c2clat
+$ taskset -c 10-11 ./c2clat.exe
  CPU   10   11
   10    0   52
   11   52    0
