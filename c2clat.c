@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < num_cpus; ++i) {
     fprintf(stdout, " %*d", 4, cpus[i]);
     for (int j = 0; j < num_cpus; ++j) {
-      fprintf(stdout, " %*.6g", 4, data[i * num_cpus + j]);
+      fprintf(stdout, " %*.0lf", 4, 10E9*data[i * num_cpus + j]);
     }
     fprintf(stdout, "\n");
   }

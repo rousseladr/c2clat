@@ -16,7 +16,7 @@ make
 Example usage:
 
 ```console
-$ ./c2clat 
+$ ./c2clat.exe 
  CPU    0    1    2    3    4    5    6    7
    0    0   92   66   62   16   56   54   53
    1   92    0   50   54   53   14   49   50
