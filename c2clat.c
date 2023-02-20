@@ -49,6 +49,18 @@ void pinThread(int cpu) {
   }
 }
 
+long pinMemory(void* addr, size_t size, int cpu)
+{
+  nodemask_t target_nodemask;
+  struct bitmask * bindmask = numa_bitmask_alloc(numa_num_possible_nodes());
+  numa_bitmask_clearall(bindmask);
+  numa_bitmask_setbit(bindmask, numa_node_of_cpu(cpu));
+  copy_bitmask_to_nodemask(bindmask, &target_nodemask);
+  numa_bitmask_free(bindmask);
+
+  return mbind(addr, size, MPOL_BIND, target_nodemask.n, 128, MPOL_MF_MOVE);
+}
+
 typedef struct {
     uint64_t *a;
     uint64_t *b;
@@ -145,8 +157,21 @@ int main(int argc, char *argv[])
       // uint64_t btest1, btest2;
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
       uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-      long unsigned int target_numanode = (long unsigned int)(1 << numa_node_of_cpu(cpus[i]));
-      mbind(btest2, sizeof(uint64_t), MPOL_BIND, &target_numanode, 64, MPOL_MF_MOVE);
+
+      if(pinMemory((void*)btest2, sizeof(uint64_t), cpus[i]) != 0)
+      {
+        fprintf(stderr, "Error: unable to bind ptr1 on numa node %d\n", numa_node_of_cpu(cpus[i]));
+        perror("mbind");
+        return EXIT_FAILURE;
+      }
+
+      if(pinMemory((void*)btest1, sizeof(uint64_t), cpus[j]) != 0)
+      {
+        fprintf(stderr, "Error: unable to bind ptr2 on numa node %d\n", numa_node_of_cpu(cpus[j]));
+        perror("mbind");
+        return EXIT_FAILURE;
+      }
+
       *btest1 = *btest2 = -1;
 
       thread_args *args = (thread_args*)malloc(sizeof(thread_args));
