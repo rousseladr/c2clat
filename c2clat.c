@@ -130,12 +130,7 @@ int main(int argc, char *argv[])
     exit(1);
   }
 
-#define USE_HYPERTHREADING 1
-#if USE_HYPERTHREADING
   int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-#else
-  int num_cpus = sysconf(_SC_NPROCESSORS_ONLN)/2;
-#endif
 
   // enumerate available CPUs
   int* cpus = (int*)malloc(sizeof(int) * num_cpus);
@@ -147,7 +142,12 @@ int main(int argc, char *argv[])
     }
   }
 
-  double* data = (double*) malloc(sizeof(double) * num_cpus * num_cpus);
+// #define USE_HYPERTHREADING 1
+#ifndef USE_HYPERTHREADING
+  num_cpus /= 2;
+#endif
+
+  double* data = (double*) calloc(num_cpus * num_cpus, sizeof(double));
 
   for (int i = 0; i < num_cpus; ++i)
   {
