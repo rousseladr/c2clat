@@ -1,6 +1,6 @@
 CC=gcc
 CFLAGS=-O3 -Wall
-LDFLAGS=-pthread
+LDFLAGS=-lnuma -pthread
 
 EXEC=c2clat.exe
 SRC=$(wildcard *.c)

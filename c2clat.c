@@ -21,6 +21,9 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <sys/utsname.h>
+#include <sys/mman.h>
+#include <numa.h>
+#include <numaif.h>
 
 typedef struct timespec struct_time;
 #define gettime(t) clock_gettime(CLOCK_MONOTONIC_RAW, t)
@@ -139,12 +142,16 @@ int main(int argc, char *argv[])
     for (int j = i + 1; j < num_cpus; ++j)
     {
 
-      uint64_t btest1, btest2;
-      btest1 = btest2 = -1;
+      // uint64_t btest1, btest2;
+      uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+      uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+      long unsigned int target_numanode = (long unsigned int)(1 << numa_node_of_cpu(cpus[i]));
+      mbind(btest2, sizeof(uint64_t), MPOL_BIND, &target_numanode, 64, MPOL_MF_MOVE);
+      *btest1 = *btest2 = -1;
 
       thread_args *args = (thread_args*)malloc(sizeof(thread_args));
-      args->a = &btest1;
-      args->b = &btest2;
+      args->a = btest1;
+      args->b = btest2;
       args->nsamples = nsamples;
       args->cpu = cpus[i];
 
@@ -161,12 +168,12 @@ int main(int argc, char *argv[])
       pinThread(cpus[j]);
       for (int m = 0; m < nsamples; ++m)
       {
-        btest1 = btest2 = -1;
+        *btest1 = *btest2 = -1;
         double ts1 = get_elapsedtime();
         for (uint64_t n = 0; n < 100; ++n)
         {
-          __atomic_store_n(&btest1, n, __ATOMIC_RELEASE);
-          while (__atomic_load_n(&btest2, __ATOMIC_ACQUIRE) != n)
+          __atomic_store_n(btest1, n, __ATOMIC_RELEASE);
+          while (__atomic_load_n(btest2, __ATOMIC_ACQUIRE) != n)
             ;
         }
         double ts2 = get_elapsedtime();
