@@ -14,7 +14,7 @@ gnuplot: $(PGR)
 	./$< -p | gnuplot -p
 
 runcsv: $(PGR)
-	./$< -c -s 10000 > $(PGR).csv
+	./$< -c -s 10000
 
 $(PGR): c2clat.c
 	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
