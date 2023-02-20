@@ -154,7 +154,6 @@ int main(int argc, char *argv[])
     for (int j = i + 1; j < num_cpus; ++j)
     {
 
-      // uint64_t btest1, btest2;
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
       uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
 
@@ -240,7 +239,7 @@ int main(int argc, char *argv[])
   for (int i = 0; i < num_cpus; ++i)
   {
     fprintf(stdout, " %*d", 4, cpus[i]);
-    fprintf(output, "\t%*d", 4, cpus[i]);
+    fprintf(output, ",%*d", 4, cpus[i]);
   }
 
   fprintf(stdout, "\n");
@@ -252,7 +251,7 @@ int main(int argc, char *argv[])
     for (int j = 0; j < num_cpus; ++j)
     {
       fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
-      fprintf(output, "\t%*.2lf", 4, 10E8*data[i * num_cpus + j]);
+      fprintf(output, ",%*.2lf", 4, 10E8*data[i * num_cpus + j]);
     }
     fprintf(stdout, "\n");
     fprintf(output, "\n");
