@@ -19,6 +19,8 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <errno.h>
+#include <sys/utsname.h>
 
 typedef struct timespec struct_time;
 #define gettime(t) clock_gettime(CLOCK_MONOTONIC_RAW, t)
@@ -37,7 +39,8 @@ void pinThread(int cpu) {
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(cpu, &set);
-  if (sched_setaffinity(0, sizeof(set), &set) == -1) {
+  if (sched_setaffinity(0, sizeof(set), &set) == -1)
+  {
     perror("sched_setaffinity");
     exit(1);
   }
@@ -72,26 +75,30 @@ void* thread_function(void* args)
   return 0;
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
 
   int nsamples = 1000;
   bool plot = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "ps:")) != -1) {
-   switch (opt) {
-   case 'p':
-     plot = true;
-     break;
-   case 's':
-     nsamples = atoi(optarg);
-     break;
-   default:
-     goto usage;
+  while ((opt = getopt(argc, argv, "ps:")) != -1)
+  {
+   switch (opt)
+   {
+     case 'p':
+       plot = true;
+       break;
+     case 's':
+       nsamples = atoi(optarg);
+       break;
+     default:
+       goto usage;
    }
   }
 
-  if (optind != argc) {
+  if (optind != argc)
+  {
   usage:
    fprintf(stderr, "c2clat 1.0.0 © 2020 Erik Rigtorp <erik@rigtorp.se>\n");
    fprintf(stderr, "usage: c2clat [-p] [-s number_of_samples]\n");
@@ -102,7 +109,8 @@ int main(int argc, char *argv[]) {
 
   cpu_set_t set;
   CPU_ZERO(&set);
-  if (sched_getaffinity(0, sizeof(set), &set) == -1) {
+  if (sched_getaffinity(0, sizeof(set), &set) == -1)
+  {
     perror("sched_getaffinity");
     exit(1);
   }
@@ -116,16 +124,20 @@ int main(int argc, char *argv[]) {
 
   // enumerate available CPUs
   int* cpus = (int*)malloc(sizeof(int) * num_cpus);
-  for (int i = 0; i < CPU_SETSIZE; ++i) {
-    if (CPU_ISSET(i, &set)) {
+  for (int i = 0; i < CPU_SETSIZE; ++i)
+  {
+    if (CPU_ISSET(i, &set))
+    {
       cpus[i] = i;
     }
   }
 
   double* data = (double*) malloc(sizeof(double) * num_cpus * num_cpus);
 
-  for (int i = 0; i < num_cpus; ++i) {
-    for (int j = i + 1; j < num_cpus; ++j) {
+  for (int i = 0; i < num_cpus; ++i)
+  {
+    for (int j = i + 1; j < num_cpus; ++j)
+    {
 
       uint64_t btest1, btest2;
       btest1 = btest2 = -1;
@@ -137,36 +149,39 @@ int main(int argc, char *argv[]) {
       args->cpu = cpus[i];
 
       pthread_t thread_i;
-    if(pthread_create (& thread_i, NULL, thread_function, args) != 0)
-    {
-      fprintf(stderr, "pthread_create error\n");
-      free(data);
-      exit(1);
-    }
-
-    double rtt = 0.;
-
-    pinThread(cpus[j]);
-    for (int m = 0; m < nsamples; ++m) {
-      btest1 = btest2 = -1;
-      double ts1 = get_elapsedtime();
-      for (uint64_t n = 0; n < 100; ++n) {
-        __atomic_store_n(&btest1, n, __ATOMIC_RELEASE);
-        while (__atomic_load_n(&btest2, __ATOMIC_ACQUIRE) != n)
-          ;
+      if(pthread_create (& thread_i, NULL, thread_function, args) != 0)
+      {
+        fprintf(stderr, "pthread_create error\n");
+        free(data);
+        exit(1);
       }
-      double ts2 = get_elapsedtime();
-      rtt = ts2 - ts1;
-    }
 
-    pthread_join(thread_i, NULL);
+      double rtt = 0.;
 
-    data[i * num_cpus + j] = rtt / 2 / 100;
-    data[j * num_cpus + i] = rtt / 2 / 100;
+      pinThread(cpus[j]);
+      for (int m = 0; m < nsamples; ++m)
+      {
+        btest1 = btest2 = -1;
+        double ts1 = get_elapsedtime();
+        for (uint64_t n = 0; n < 100; ++n)
+        {
+          __atomic_store_n(&btest1, n, __ATOMIC_RELEASE);
+          while (__atomic_load_n(&btest2, __ATOMIC_ACQUIRE) != n)
+            ;
+        }
+        double ts2 = get_elapsedtime();
+        rtt += ts2 - ts1;
+      }
+
+      pthread_join(thread_i, NULL);
+
+      data[i * num_cpus + j] = (rtt / 2 / 100) / nsamples;
+      data[j * num_cpus + i] = (rtt / 2 / 100) / nsamples;
     }
   }
 
-  if (plot) {
+  if (plot)
+  {
     fprintf(stdout, "set title \"Inter-core one-way data latency between CPU cores\"\n");
     fprintf(stdout, "set xlabel \"CPU\"\n");
     fprintf(stdout, "set ylabel \"CPU\"\n");
@@ -174,25 +189,51 @@ int main(int argc, char *argv[]) {
     fprintf(stdout, "$data << EOD\n");
   }
 
-  fprintf(stdout, " %*s", 4, "CPU");
-  for (int i = 0; i < num_cpus; ++i) {
-    fprintf(stdout, " %*d", 4, cpus[i]);
-  }
-  fprintf(stdout, "\n");
-  for (int i = 0; i < num_cpus; ++i) {
-    fprintf(stdout, " %*d", 4, cpus[i]);
-    for (int j = 0; j < num_cpus; ++j) {
-      fprintf(stdout, " %*.0lf", 4, 10E9*data[i * num_cpus + j]);
-    }
-    fprintf(stdout, "\n");
+  struct utsname buffer;
+
+  errno = 0;
+  if (uname(&buffer) < 0)
+  {
+    perror("uname");
+    exit(EXIT_FAILURE);
   }
 
-  if (plot) {
+  char out_filename[100];
+  sprintf(out_filename, "%s.csv", buffer.nodename);
+  FILE* output;
+  output = fopen(out_filename, "w+");
+
+  fprintf(stdout, " %*s", 4, "CPU");
+  fprintf(output, "%*s", 4, "CPU");
+  for (int i = 0; i < num_cpus; ++i)
+  {
+    fprintf(stdout, " %*d", 4, cpus[i]);
+    fprintf(output, "\t%*d", 4, cpus[i]);
+  }
+
+  fprintf(stdout, "\n");
+  fprintf(output, "\n");
+  for (int i = 0; i < num_cpus; ++i)
+  {
+    fprintf(stdout, " %*d", 4, cpus[i]);
+    fprintf(output, "%*d", 4, cpus[i]);
+    for (int j = 0; j < num_cpus; ++j)
+    {
+      fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
+      fprintf(output, "\t%*.2lf", 4, 10E8*data[i * num_cpus + j]);
+    }
+    fprintf(stdout, "\n");
+    fprintf(output, "\n");
+  }
+
+  if (plot)
+  {
     fprintf(stdout, "EOD\n");
     fprintf(stdout, "plot '$data' matrix rowheaders columnheaders using 2:1:3 ");
     fprintf(stdout, "with image\n");
   }
 
+  fclose(output);
   free(data);
 
   return 0;
