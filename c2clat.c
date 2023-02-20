@@ -282,7 +282,7 @@ usage:
 
   if(csvplot) {
     FILE* output;
-    output = fopen("c2clat.csv", "w+");
+    output = fopen("c2clat.csv", "w");
 
     for (int i = 0; i < num_cpus; ++i)
     {
@@ -297,7 +297,7 @@ usage:
           fprintf(output, ",");
         }
       }
-      fprintf(stdout, "\n");
+      //fprintf(stdout, "\n");
       fprintf(output, "\n");
     }
     fclose(output);
