@@ -1,33 +1,43 @@
-// © 2020 Erik Rigtorp <erik@rigtorp.se>
-// SPDX-License-Identifier: MIT
+/*
+ Copyright 2020 Erik Rigtorp <erik@rigtorp.se>
+ SPDX-License-Identifier: MIT
 
-// Measure inter-core one-way data latency
-//
-// Build:
-// g++ -O3 -DNDEBUG c2clat.cpp -o c2clat -pthread
-//
-// Plot results using gnuplot:
-// $ c2clat -p | gnuplot -p
+ Copyright 2023 Hugo Tabada <hmt23@pm.me>
+ SPDX-License-Identifier: MIT
+
+ Measure inter-core one-way data latency
+
+ Plot results using gnuplot:
+ $ c2clat -p | gnuplot -p
+
+*/
 
 #define _GNU_SOURCE
 
 #include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
-#include <pthread.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include <errno.h>
+#include <unistd.h>
+
+#include <time.h>
+
 #include <sys/utsname.h>
 #include <sys/mman.h>
+
+
+#include <pthread.h>
+#include <errno.h>
+
 #include <numa.h>
 #include <numaif.h>
 
 typedef struct timespec struct_time;
+
 #define gettime(t) clock_gettime(CLOCK_MONOTONIC_RAW, t)
 #define get_sub_seconde(t) (1e-9*(double)t.tv_nsec)
+
 /** return time in second
 */
 double get_elapsedtime(void)
@@ -45,7 +55,7 @@ void pinThread(int cpu) {
   if (sched_setaffinity(0, sizeof(set), &set) == -1)
   {
     perror("sched_setaffinity");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 }
 
@@ -62,10 +72,10 @@ long pinMemory(void* addr, size_t size, int cpu)
 }
 
 typedef struct {
-    uint64_t *a;
-    uint64_t *b;
-    int nsamples;
-    int cpu;
+  uint64_t *a;
+  uint64_t *b;
+  int nsamples;
+  int cpu;
 } thread_args;
 
 void* thread_function(void* args)
@@ -94,32 +104,42 @@ int main(int argc, char *argv[])
 {
 
   int nsamples = 1000;
-  bool plot = false;
+  bool gnuplot = false;
+  bool csvplot = false;
 
   int opt;
-  while ((opt = getopt(argc, argv, "ps:")) != -1)
+  while ((opt = getopt(argc, argv, "chps:")) != -1)
   {
-   switch (opt)
-   {
-     case 'p':
-       plot = true;
-       break;
-     case 's':
-       nsamples = atoi(optarg);
-       break;
-     default:
-       goto usage;
-   }
+    switch (opt)
+    {
+      case 'p':
+        gnuplot = true;
+        break;
+      case 'c':
+        gnuplot = false;
+        csvplot = true;
+        break;
+      case 's':
+        nsamples = atoi(optarg);
+        break;
+      case 'h':
+        goto usage;
+        break;
+      default:
+        goto usage;
+    }
   }
 
   if (optind != argc)
   {
-  usage:
-   fprintf(stderr, "c2clat 1.0.0 © 2020 Erik Rigtorp <erik@rigtorp.se>\n");
-   fprintf(stderr, "usage: c2clat [-p] [-s number_of_samples]\n");
-   fprintf(stderr, "\nPlot results using gnuplot:\n");
-   fprintf(stderr, "c2clat -p | gnuplot -p\n");
-   exit(1);
+usage:
+    fprintf(stdout, "c2clat 2.0.0\n");
+    fprintf(stdout, "usage: c2clat\n\t[-c generate csv output]\n\t[-h print this help]\n\t[-p plot with gnuplot]\n\t[-s number_of_samples]\n");
+    fprintf(stdout, "\nPlot results using gnuplot:\n");
+    fprintf(stdout, "c2clat -p | gnuplot -p\n");
+    fprintf(stdout, "\nPlot results using csv:\n");
+    fprintf(stdout, "c2clat -c && ./plot_heapmap_c2c.py\n");
+    exit(EXIT_SUCCESS);
   }
 
   cpu_set_t set;
@@ -127,7 +147,7 @@ int main(int argc, char *argv[])
   if (sched_getaffinity(0, sizeof(set), &set) == -1)
   {
     perror("sched_getaffinity");
-    exit(1);
+    exit(EXIT_FAILURE);
   }
 
   int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
@@ -142,8 +162,7 @@ int main(int argc, char *argv[])
     }
   }
 
-// #define USE_HYPERTHREADING 1
-#ifndef USE_HYPERTHREADING
+#ifndef USE_SMT
   num_cpus /= 2;
 #endif
 
@@ -184,7 +203,7 @@ int main(int argc, char *argv[])
       {
         fprintf(stderr, "pthread_create error\n");
         free(data);
-        exit(1);
+        exit(EXIT_FAILURE);
       }
 
       double rtt = 0.;
@@ -211,60 +230,80 @@ int main(int argc, char *argv[])
     }
   }
 
-  if (plot)
+  if (!gnuplot && !csvplot)
+  {
+    fprintf(stdout, " %*s", 4, "CPU");
+    for (int i = 0; i < num_cpus; ++i)
+    {
+      fprintf(stdout, " %*d", 4, cpus[i]);
+    }
+
+    fprintf(stdout, "\n");
+    for (int i = 0; i < num_cpus; ++i)
+    {
+      fprintf(stdout, " %*d", 4, cpus[i]);
+      for (int j = 0; j < num_cpus; ++j)
+      {
+        fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
+      }
+      fprintf(stdout, "\n");
+    }
+  }
+  if (gnuplot)
   {
     fprintf(stdout, "set title \"Inter-core one-way data latency between CPU cores\"\n");
     fprintf(stdout, "set xlabel \"CPU\"\n");
     fprintf(stdout, "set ylabel \"CPU\"\n");
     fprintf(stdout, "set cblabel \"Latency (ns)\"\n");
     fprintf(stdout, "$data << EOD\n");
-  }
 
-  struct utsname buffer;
-
-  errno = 0;
-  if (uname(&buffer) < 0)
-  {
-    perror("uname");
-    exit(EXIT_FAILURE);
-  }
-
-  char out_filename[100];
-  sprintf(out_filename, "%s.csv", buffer.nodename);
-  FILE* output;
-  output = fopen(out_filename, "w+");
-
-  fprintf(stdout, " %*s", 4, "CPU");
-  fprintf(output, "%*s", 4, "CPU");
-  for (int i = 0; i < num_cpus; ++i)
-  {
-    fprintf(stdout, " %*d", 4, cpus[i]);
-    fprintf(output, ",%*d", 4, cpus[i]);
-  }
-
-  fprintf(stdout, "\n");
-  fprintf(output, "\n");
-  for (int i = 0; i < num_cpus; ++i)
-  {
-    fprintf(stdout, " %*d", 4, cpus[i]);
-    fprintf(output, "%*d", 4, cpus[i]);
-    for (int j = 0; j < num_cpus; ++j)
+    fprintf(stdout, " %*s", 4, "CPU");
+    for (int i = 0; i < num_cpus; ++i)
     {
-      fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
-      fprintf(output, ",%*.2lf", 4, 10E8*data[i * num_cpus + j]);
+      fprintf(stdout, " %*d", 4, cpus[i]);
     }
-    fprintf(stdout, "\n");
-    fprintf(output, "\n");
-  }
 
-  if (plot)
-  {
+    fprintf(stdout, "\n");
+    for (int i = 0; i < num_cpus; ++i)
+    {
+      fprintf(stdout, " %*d", 4, cpus[i]);
+      for (int j = 0; j < num_cpus; ++j)
+      {
+        fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
+      }
+      fprintf(stdout, "\n");
+    }
+
+
     fprintf(stdout, "EOD\n");
     fprintf(stdout, "plot '$data' matrix rowheaders columnheaders using 2:1:3 ");
     fprintf(stdout, "with image\n");
   }
 
-  fclose(output);
+  if(csvplot) {
+    FILE* output;
+    output = fopen("c2clat.csv", "w");
+
+    for (int i = 0; i < num_cpus; ++i)
+    {
+      for (int j = 0; j < num_cpus; ++j)
+      {
+        if (j<i) {
+          //fprintf(stdout, "%*.2lf,", 4, 10E8*data[i * num_cpus + j]);
+          fprintf(output, "%*.2lf,", 4, 10E8*data[i * num_cpus + j]);
+        }
+        else if( j != num_cpus-1) {
+          //fprintf(stdout, ",");
+          fprintf(output, ",");
+        }
+      }
+      //fprintf(stdout, "\n");
+      fprintf(output, "\n");
+    }
+    fclose(output);
+  }
+
+
   free(data);
 
   return 0;

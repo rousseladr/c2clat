@@ -1,21 +1,24 @@
 CC=gcc
-CFLAGS=-O3 -Wall
+CFLAGS=-O3 -Wall -DNDEBUG -DUSE_SMT
 LDFLAGS=-lnuma -pthread
 
-EXEC=c2clat.exe
-SRC=$(wildcard *.c)
-OBJ=$(SRC:.c=.o)
+PGR=c2clat
 
-all : $(EXEC)
+usage: $(PGR)
+	./$< -h
 
-$(EXEC) : $(OBJ)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+display: runcsv
+	./plot_heapmap_c2c.py
 
-%.o : %.c
-	$(CC) $(CFLAGS) -o $@ -c $<
+gnuplot: $(PGR)
+	./$< -p | gnuplot -p
 
-proper :
-	rm -f *.o
+runcsv: $(PGR)
+	./$< -c -s 10000
 
-clean : proper
-	rm -f $(EXEC)
+$(PGR): c2clat.c
+	$(CC) $(CFLAGS) $< -o $@ $(LDFLAGS)
+
+.PHONY: clean
+clean:
+	rm -f c2clat c2clat.csv
