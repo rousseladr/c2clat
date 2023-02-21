@@ -52,5 +52,6 @@ def show_heapmap(m, title=None, subtitle=None, vmin=None, vmax=None, yticks=True
 fd = load_data("c2clat.csv")
 machine=os.popen("cat /proc/cpuinfo | awk '/model name/{print $0 ; exit}' | cut -d \":\" -f 2").readline()
 show_heapmap(fd,title=machine)
-plt.show()
+plt.savefig("c2clat.pdf", format="pdf", bbox_inches="tight")
+#  plt.show()
 

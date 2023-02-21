@@ -2,6 +2,9 @@
  Copyright 2020 Erik Rigtorp <erik@rigtorp.se>
  SPDX-License-Identifier: MIT
 
+ Copyright 2023 Adrien Roussel <adrien.roussel@protonmail.com>
+ SPDX-License-Identifier: MIT
+
  Copyright 2023 Hugo Tabada <hmt23@pm.me>
  SPDX-License-Identifier: MIT
 
@@ -174,7 +177,18 @@ usage:
     {
 
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+      if(btest1 == NULL)
+      {
+        fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
+        return EXIT_FAILURE;
+      }
+
       uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+      if(btest2 == NULL)
+      {
+        fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
+        return EXIT_FAILURE;
+      }
 
       if(pinMemory((void*)btest2, sizeof(uint64_t), cpus[i]) != 0)
       {
@@ -280,7 +294,8 @@ usage:
     fprintf(stdout, "with image\n");
   }
 
-  if(csvplot) {
+  if(csvplot)
+  {
     FILE* output;
     output = fopen("c2clat.csv", "w");
 
@@ -289,15 +304,12 @@ usage:
       for (int j = 0; j < num_cpus; ++j)
       {
         if (j<i) {
-          //fprintf(stdout, "%*.2lf,", 4, 10E8*data[i * num_cpus + j]);
           fprintf(output, "%*.2lf,", 4, 10E8*data[i * num_cpus + j]);
         }
         else if( j != num_cpus-1) {
-          //fprintf(stdout, ",");
           fprintf(output, ",");
         }
       }
-      //fprintf(stdout, "\n");
       fprintf(output, "\n");
     }
     fclose(output);
