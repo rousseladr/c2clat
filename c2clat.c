@@ -239,8 +239,8 @@ usage:
 
       pthread_join(thread_i, NULL);
 
-      data[i * num_cpus + j] = (rtt / 2 / 100) / nsamples;
-      data[j * num_cpus + i] = (rtt / 2 / 100) / nsamples;
+      data[i * num_cpus + j] = (rtt / 2 / 100);
+      data[j * num_cpus + i] = (rtt / 2 / 100);
     }
   }
 
@@ -258,7 +258,7 @@ usage:
       fprintf(stdout, " %*d", 4, cpus[i]);
       for (int j = 0; j < num_cpus; ++j)
       {
-        fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
+        fprintf(stdout, " %*.2lf", 4, 1E9*data[i * num_cpus + j]);
       }
       fprintf(stdout, "\n");
     }
@@ -283,7 +283,7 @@ usage:
       fprintf(stdout, " %*d", 4, cpus[i]);
       for (int j = 0; j < num_cpus; ++j)
       {
-        fprintf(stdout, " %*.2lf", 4, 10E8*data[i * num_cpus + j]);
+        fprintf(stdout, " %*.2lf", 4, 1E9*data[i * num_cpus + j]);
       }
       fprintf(stdout, "\n");
     }
