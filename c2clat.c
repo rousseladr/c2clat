@@ -5,7 +5,7 @@
  Copyright 2023 Adrien Roussel <adrien.roussel@protonmail.com>
  SPDX-License-Identifier: MIT
 
- Copyright 2023 Hugo Tabada <hmt23@pm.me>
+ Copyright 2023 Hugo Taboada <hmt23@pm.me>
  SPDX-License-Identifier: MIT
 
  Measure inter-core one-way data latency
@@ -304,7 +304,7 @@ usage:
       for (int j = 0; j < num_cpus; ++j)
       {
         if (j<i) {
-          fprintf(output, "%*.2lf,", 4, 10E8*data[i * num_cpus + j]);
+          fprintf(output, "%*.2lf,", 4, 1E9*data[i * num_cpus + j]);
         }
         else if( j != num_cpus-1) {
           fprintf(output, ",");
