@@ -168,7 +168,7 @@ usage:
   }
 
 #ifndef USE_SMT
-  num_cpus /= 2;
+  num_cpus /= 2; //TODO This is not always true fix it !
 #endif
 
   double* data = (double*) calloc(num_cpus * num_cpus, sizeof(double));
