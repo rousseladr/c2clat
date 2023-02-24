@@ -4,6 +4,8 @@ LDFLAGS=-lnuma -pthread
 
 PGR=c2clat
 
+compile: $(PGR)
+
 usage: $(PGR)
 	./$< -h
 
