@@ -27,6 +27,7 @@
 
 #include <sys/utsname.h>
 #include <sys/mman.h>
+#include <sys/sysinfo.h>
 
 
 #include <pthread.h>
@@ -152,7 +153,7 @@ usage:
     exit(EXIT_FAILURE);
   }
 
-  int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+  int num_cpus = get_nprocs();
 
   // enumerate available CPUs
   int* cpus = malloc(sizeof(int) * num_cpus);
