@@ -28,3 +28,5 @@ $(PGR): c2clat.c
 clean:
 	rm -f c2clat c2clat.csv c2clat.pdf
 
+proper:
+	rm -f c2clat.o
