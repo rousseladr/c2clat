@@ -234,7 +234,7 @@ usage:
             ;
         }
         double ts2 = get_elapsedtime();
-        rtt += ts2 - ts1;
+        rtt = ts2 - ts1;
       }
 
       pthread_join(thread_i, NULL);
