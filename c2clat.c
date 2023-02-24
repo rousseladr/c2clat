@@ -147,9 +147,9 @@ usage:
 
   cpu_set_t set;
   CPU_ZERO(&set);
-  if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) != 0)
+  if (sched_getaffinity(0, sizeof(set), &set) != 0)
   {
-    perror("pthread_getaffinity_np");
+    perror("sched_getaffinity");
     exit(EXIT_FAILURE);
   }
 
@@ -157,11 +157,13 @@ usage:
 
   // enumerate available CPUs
   int* cpus = malloc(sizeof(int) * num_cpus);
+  int li=0;
   for (int i = 0; i < CPU_SETSIZE; ++i)
   {
     if (CPU_ISSET(i, &set))
     {
-      cpus[i] = i;
+      cpus[li] = i;
+      li++;
     }
   }
 
