@@ -54,7 +54,8 @@ void pinThread(int cpu) {
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(cpu, &set);
-  if (pthread_setaffinity_np(pthread_self(), sizeof(set), &set) != 0)
+  pthread_t current_thread = pthread_self();
+  if(pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &set) != 0)
   {
     perror("pthread_setaffinity_np");
     exit(EXIT_FAILURE);
