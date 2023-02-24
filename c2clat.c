@@ -316,6 +316,7 @@ usage:
   }
 
 
+  free(cpus);
   free(data);
 
   return 0;
