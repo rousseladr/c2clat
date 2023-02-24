@@ -156,7 +156,7 @@ usage:
   int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
 
   // enumerate available CPUs
-  int* cpus = (int*)malloc(sizeof(int) * num_cpus);
+  int* cpus = malloc(sizeof(int) * num_cpus);
   for (int i = 0; i < CPU_SETSIZE; ++i)
   {
     if (CPU_ISSET(i, &set))
@@ -206,7 +206,7 @@ usage:
 
       *btest1 = *btest2 = -1;
 
-      thread_args *args = (thread_args*)malloc(sizeof(thread_args));
+      thread_args *args = malloc(sizeof(thread_args));
       args->a = btest1;
       args->b = btest2;
       args->nsamples = nsamples;
@@ -234,13 +234,15 @@ usage:
             ;
         }
         double ts2 = get_elapsedtime();
-        rtt += ts2 - ts1;
+        rtt = ts2 - ts1;
       }
 
       pthread_join(thread_i, NULL);
 
       data[i * num_cpus + j] = (rtt / 2 / 100);
       data[j * num_cpus + i] = (rtt / 2 / 100);
+
+      free(args);
     }
   }
 
@@ -316,6 +318,7 @@ usage:
   }
 
 
+  free(cpus);
   free(data);
 
   return 0;
