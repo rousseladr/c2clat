@@ -177,14 +177,14 @@ usage:
     {
 
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-      if(btest1 == NULL)
+      if(btest1 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
       }
 
       uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-      if(btest2 == NULL)
+      if(btest2 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
