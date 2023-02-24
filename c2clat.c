@@ -27,6 +27,7 @@
 
 #include <sys/utsname.h>
 #include <sys/mman.h>
+#include <sys/sysinfo.h>
 
 
 #include <pthread.h>
@@ -147,26 +148,28 @@ usage:
 
   cpu_set_t set;
   CPU_ZERO(&set);
-  if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) != 0)
+  if (sched_getaffinity(0, sizeof(set), &set) != 0)
   {
-    perror("pthread_getaffinity_np");
+    perror("sched_getaffinity");
     exit(EXIT_FAILURE);
   }
 
-  int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+  int num_cpus = get_nprocs();
 
   // enumerate available CPUs
   int* cpus = malloc(sizeof(int) * num_cpus);
+  int li=0;
   for (int i = 0; i < CPU_SETSIZE; ++i)
   {
     if (CPU_ISSET(i, &set))
     {
-      cpus[i] = i;
+      cpus[li] = i;
+      li++;
     }
   }
 
 #ifndef USE_SMT
-  num_cpus /= 2;
+  num_cpus /= 2; //TODO This is not always true fix it !
 #endif
 
   double* data = (double*) calloc(num_cpus * num_cpus, sizeof(double));
