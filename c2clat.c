@@ -17,7 +17,6 @@
 
 #define _GNU_SOURCE
 
-#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -55,9 +54,9 @@ void pinThread(int cpu) {
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(cpu, &set);
-  if (sched_setaffinity(0, sizeof(set), &set) == -1)
+  if (pthread_setaffinity_np(pthread_self(), sizeof(set), &set) != 0)
   {
-    perror("sched_setaffinity");
+    perror("pthread_setaffinity_np");
     exit(EXIT_FAILURE);
   }
 }
@@ -147,9 +146,9 @@ usage:
 
   cpu_set_t set;
   CPU_ZERO(&set);
-  if (sched_getaffinity(0, sizeof(set), &set) == -1)
+  if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) != 0)
   {
-    perror("sched_getaffinity");
+    perror("pthread_getaffinity_np");
     exit(EXIT_FAILURE);
   }
 
@@ -177,14 +176,14 @@ usage:
     {
 
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-      if(btest1 == NULL)
+      if(btest1 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
       }
 
       uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
-      if(btest2 == NULL)
+      if(btest2 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
@@ -242,6 +241,8 @@ usage:
       data[i * num_cpus + j] = (rtt / 2 / 100);
       data[j * num_cpus + i] = (rtt / 2 / 100);
 
+      munmap(btest1, sizeof(uint64_t));
+      munmap(btest2, sizeof(uint64_t));
       free(args);
     }
   }
