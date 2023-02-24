@@ -241,6 +241,8 @@ usage:
 
       data[i * num_cpus + j] = (rtt / 2 / 100);
       data[j * num_cpus + i] = (rtt / 2 / 100);
+
+      free(args);
     }
   }
 
