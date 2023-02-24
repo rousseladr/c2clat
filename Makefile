@@ -7,7 +7,7 @@ PGR=c2clat
 usage: $(PGR)
 	./$< -h
 
-display: runcsv
+pdf: runcsv
 	./plot_heapmap_c2c.py
 
 gnuplot: $(PGR)
@@ -21,4 +21,5 @@ $(PGR): c2clat.c
 
 .PHONY: clean
 clean:
-	rm -f c2clat c2clat.csv
+	rm -f c2clat c2clat.csv c2clat.pdf
+
