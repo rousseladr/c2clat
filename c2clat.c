@@ -242,6 +242,8 @@ usage:
       data[i * num_cpus + j] = (rtt / 2 / 100);
       data[j * num_cpus + i] = (rtt / 2 / 100);
 
+      munmap(btest1, sizeof(uint64_t));
+      munmap(btest2, sizeof(uint64_t));
       free(args);
     }
   }
