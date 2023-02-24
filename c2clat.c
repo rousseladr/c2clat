@@ -17,7 +17,6 @@
 
 #define _GNU_SOURCE
 
-#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -55,9 +54,9 @@ void pinThread(int cpu) {
   cpu_set_t set;
   CPU_ZERO(&set);
   CPU_SET(cpu, &set);
-  if (sched_setaffinity(0, sizeof(set), &set) == -1)
+  if (pthread_setaffinity_np(pthread_self(), sizeof(set), &set) != 0)
   {
-    perror("sched_setaffinity");
+    perror("pthread_setaffinity_np");
     exit(EXIT_FAILURE);
   }
 }
@@ -147,9 +146,9 @@ usage:
 
   cpu_set_t set;
   CPU_ZERO(&set);
-  if (sched_getaffinity(0, sizeof(set), &set) == -1)
+  if (pthread_getaffinity_np(pthread_self(), sizeof(set), &set) != 0)
   {
-    perror("sched_getaffinity");
+    perror("pthread_getaffinity_np");
     exit(EXIT_FAILURE);
   }
 
