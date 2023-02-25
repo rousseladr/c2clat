@@ -153,6 +153,12 @@ usage:
     perror("sched_getaffinity");
     exit(EXIT_FAILURE);
   }
+  //cpu_set_t new_mask;
+  //cpu_set_t was_mask;
+  //int tid = omp_get_thread_num();
+  //CPU_ZERO(&new_mask);
+   /* 2 packages x 2 cores/pkg x 1 threads/core (4 total cores) */
+  //CPU_SET(tid==0 ? 0 : 2, &new_mask);
 
   int num_cpus = get_nprocs();
 
@@ -170,14 +176,17 @@ usage:
 
 #ifndef USE_SMT
   num_cpus /= 2; //TODO This is not always true fix it !
+                 //cat /sys/devices/system/cpu/cpu1/topology/thread_siblings_list
 #endif
 
   double* data = (double*) calloc(num_cpus * num_cpus, sizeof(double));
 
   for (int i = 0; i < num_cpus; ++i)
   {
-    for (int j = i + 1; j < num_cpus; ++j)
+    for (int j = 0; j < num_cpus; ++j)
     {
+
+      if(i == j) continue;
 
       uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
       if(btest1 == MAP_FAILED)
@@ -243,7 +252,6 @@ usage:
       pthread_join(thread_i, NULL);
 
       data[i * num_cpus + j] = (rtt / 2 / 100);
-      data[j * num_cpus + i] = (rtt / 2 / 100);
 
       munmap(btest1, sizeof(uint64_t));
       munmap(btest2, sizeof(uint64_t));
