@@ -153,33 +153,92 @@ usage:
     perror("sched_getaffinity");
     exit(EXIT_FAILURE);
   }
-  //cpu_set_t new_mask;
-  //cpu_set_t was_mask;
-  //int tid = omp_get_thread_num();
-  //CPU_ZERO(&new_mask);
-   /* 2 packages x 2 cores/pkg x 1 threads/core (4 total cores) */
-  //CPU_SET(tid==0 ? 0 : 2, &new_mask);
 
   int num_cpus = get_nprocs();
 
+  bool* smt = (bool*)malloc(sizeof(bool) * CPU_SETSIZE);
   // enumerate available CPUs
   int* cpus = malloc(sizeof(int) * num_cpus);
   int li=0;
   for (int i = 0; i < CPU_SETSIZE; ++i)
   {
+    smt[i] = false;
     if (CPU_ISSET(i, &set))
     {
       cpus[li] = i;
       li++;
     }
   }
+  num_cpus = li;
 
-#ifndef USE_SMT
-  num_cpus /= 2; //TODO This is not always true fix it !
-                 //cat /sys/devices/system/cpu/cpu1/topology/thread_siblings_list
-#endif
+  FILE* input;
+  int nb_phys_cpus = 0;
+  // This loop eliminates the hyper-threads to only conserve one PU per processor
+  for(int i = 0; i < num_cpus; ++i)
+  {
+    char input_file[1024];
+    sprintf(input_file, "/sys/devices/system/cpu/cpu%d/topology/thread_siblings_list", cpus[i]);
+    input = fopen(input_file, "r");
+    if(input == NULL)
+    {
+      perror("fopen");
+      exit(EXIT_FAILURE);
+    }
+    char* line = NULL;
+    size_t len;
+    // Get the list of SMT on the cpu cpus[i]
+    // Format gives list of PU separated by commas
+    if(getline(&line, &len, input) == -1)
+    {
+      perror("getline");
+      exit(EXIT_FAILURE);
+    }
 
-  double* data = (double*) calloc(num_cpus * num_cpus, sizeof(double));
+    // We are only interested by the first PU in the list,
+    // so find the 1st occurence of the comma
+    char* delim = strpbrk(line, ",");
+    if(delim != NULL)
+    {
+      // Ends the line by filling it with '\0'
+      // and read the value before ',' symbol
+      *delim = '\0';
+    }
+
+    // Convert into integer
+    int cur_cpu = atoi(line);
+
+    // if cur_cpu has already been set (false in smt array), then continue
+    // Else, set the pu to true
+    if(!smt[cur_cpu] && cur_cpu >= 0 && cur_cpu < CPU_SETSIZE)
+    {
+      nb_phys_cpus++;
+      smt[cur_cpu] = true;
+    }
+    fclose(input);
+    if(line != NULL)
+    {
+      free(line);
+    }
+  }
+
+  int *phys_cpus = (int*) malloc(sizeof(int) * nb_phys_cpus);
+  li = 0;
+  for(int i = 0; i < CPU_SETSIZE; ++i)
+  {
+    if(smt[i])
+    {
+      phys_cpus[li] = i;
+      li++;
+    }
+  }
+  free(smt);
+  free(cpus);
+
+  num_cpus = nb_phys_cpus;
+  cpus = phys_cpus;
+
+  double* data = (double*)malloc(num_cpus * num_cpus * sizeof(double));
+  memset(data, 0, num_cpus * num_cpus * sizeof(double));
 
   for (int i = 0; i < num_cpus; ++i)
   {

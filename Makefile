@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-O3 -Wall -DNDEBUG -DUSE_SMT
+CFLAGS=-O3 -Wall -DNDEBUG
 LDFLAGS=-lnuma -pthread
 
 PGR=c2clat
