@@ -5,9 +5,9 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
 import argparse
 import os
+import sys
 
 def load_data(filename):
     m = np.array(pd.read_json(filename))
@@ -51,7 +51,7 @@ def show_heapmap(m, title=None, subtitle=None, vmin=None, vmax=None, yticks=True
               f"Min={vmin:0.1f}ns Median={np.nanmedian(m):0.1f}ns Max={vmax:0.1f}ns",
               fontsize=11, linespacing=1.5)
 
-parser = argparse.ArgumentParser(description='memapper plot program')
+parser = argparse.ArgumentParser(description='c2clat plot program')
 
 # Profile Support
 parser.add_argument('-i', '--input', required=True, type=str, help="Input JSON file to plot")
@@ -62,7 +62,6 @@ args = parser.parse_args(sys.argv[1:])
 with open(args.input, "r") as f:
     fd = load_data(f)
 machine=os.popen("cat /proc/cpuinfo | awk '/model name/{print $0 ; exit}' | cut -d \":\" -f 2").readline()
-show_heapmap(fd,title=machine)
 
 if args.out:
     plt.savefig(args.out, format="pdf", bbox_inches="tight")
