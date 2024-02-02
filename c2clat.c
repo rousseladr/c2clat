@@ -51,6 +51,85 @@ double get_elapsedtime(void)
   return (double)st.tv_sec + get_sub_seconde(st);
 }
 
+/*!
+  * Function used to eliminate redundant cpus (i.e. hyperthreads) from a list of cpus
+  * @param[in] num_cpus         number of cpus to test
+  * @param[in] cpus             list of cpus to test 
+  * @param[out] nb_phys_cpus    number of physical cpus, without hyperthreads 
+  * @return                     List of physical cpus
+ */
+int* eliminate_hyperthreads(int num_cpus, int* cpus, int* nb_phys_cpus)
+{
+  bool* smt = (bool*)malloc(sizeof(bool) * CPU_SETSIZE);
+  memset((void*)smt, 0, sizeof(bool) * CPU_SETSIZE);
+
+  FILE* input;
+  *nb_phys_cpus = 0;
+  // This loop eliminates the hyper-threads to only conserve one PU per processor
+  for(int i = 0; i < num_cpus; ++i)
+  {
+    char input_file[1024];
+    sprintf(input_file, "/sys/devices/system/cpu/cpu%d/topology/thread_siblings_list", cpus[i]);
+    input = fopen(input_file, "r");
+    if(input == NULL)
+    {
+      perror("fopen");
+      exit(EXIT_FAILURE);
+    }
+    char* line = NULL;
+    size_t len;
+    // Get the list of SMT on the cpu cpus[i]
+    // Format gives list of PU separated by commas
+    if(getline(&line, &len, input) == -1)
+    {
+      perror("getline");
+      exit(EXIT_FAILURE);
+    }
+
+    // We are only interested by the first PU in the list,
+    // so find the 1st occurence of the comma
+    char* delim = strpbrk(line, ",");
+    if(delim != NULL)
+    {
+      // Ends the line by filling it with '\0'
+      // and read the value before ',' symbol
+      *delim = '\0';
+    }
+
+    // Convert into integer
+    int cur_cpu = atoi(line);
+
+    // if cur_cpu has already been set (false in smt array), then continue
+    // Else, set the pu to true
+    if(!smt[cur_cpu] && cur_cpu >= 0 && cur_cpu < CPU_SETSIZE)
+    {
+      *nb_phys_cpus += 1;
+      smt[cur_cpu] = true;
+    }
+    fclose(input);
+    if(line != NULL)
+    {
+      free(line);
+    }
+  }
+
+  int* phys_cpus = (int*) malloc(sizeof(int) * (*nb_phys_cpus));
+
+  int li = 0;
+  for(int i = 0; i < CPU_SETSIZE; ++i)
+  {
+    if(smt[i])
+    {
+      phys_cpus[li] = i;
+      li++;
+    }
+  }
+  free(smt);
+
+  return phys_cpus;
+
+}
+
 void pinThread(int cpu) {
   cpu_set_t set;
   CPU_ZERO(&set);
@@ -110,9 +189,11 @@ int main(int argc, char *argv[])
   int nsamples = 1000;
   bool gnuplot = false;
   bool csvplot = false;
+  bool jsonplot = false;
+	char *out = NULL;
 
   int opt;
-  while ((opt = getopt(argc, argv, "chps:")) != -1)
+  while ((opt = getopt(argc, argv, "pcjhs:o:")) != -1)
   {
     switch (opt)
     {
@@ -123,11 +204,17 @@ int main(int argc, char *argv[])
         gnuplot = false;
         csvplot = true;
         break;
+      case 'j':
+        jsonplot = true;
+        break;
       case 's':
         nsamples = atoi(optarg);
         break;
       case 'h':
         goto usage;
+        break;
+      case 'o' :
+        out = strdup(optarg);
         break;
       default:
         goto usage;
@@ -138,11 +225,12 @@ int main(int argc, char *argv[])
   {
 usage:
     fprintf(stdout, "c2clat 2.0.0\n");
-    fprintf(stdout, "usage: c2clat\n\t[-c generate csv output]\n\t[-h print this help]\n\t[-p plot with gnuplot]\n\t[-s number_of_samples]\n");
+    fprintf(stdout, "usage: c2clat\n\t[-j generate json output]\n\t[-c generate csv output]\n\t[-h print this help]\n\t[-p plot with gnuplot]\n\t[-s number_of_samples]\n\t[-o output file without extension]\n");
     fprintf(stdout, "\nPlot results using gnuplot:\n");
     fprintf(stdout, "c2clat -p | gnuplot -p\n");
     fprintf(stdout, "\nPlot results using csv:\n");
     fprintf(stdout, "c2clat -c && ./plot_heapmap_c2c.py\n");
+    fprintf(stdout, "c2clat -j && ./plot_json.py -i c2clat.json -o c2clat.pdf\n");
     exit(EXIT_SUCCESS);
   }
 
@@ -156,13 +244,11 @@ usage:
 
   int num_cpus = get_nprocs();
 
-  bool* smt = (bool*)malloc(sizeof(bool) * CPU_SETSIZE);
   // enumerate available CPUs
   int* cpus = malloc(sizeof(int) * num_cpus);
   int li=0;
   for (int i = 0; i < CPU_SETSIZE; ++i)
   {
-    smt[i] = false;
     if (CPU_ISSET(i, &set))
     {
       cpus[li] = i;
@@ -171,67 +257,9 @@ usage:
   }
   num_cpus = li;
 
-  FILE* input;
   int nb_phys_cpus = 0;
-  // This loop eliminates the hyper-threads to only conserve one PU per processor
-  for(int i = 0; i < num_cpus; ++i)
-  {
-    char input_file[1024];
-    sprintf(input_file, "/sys/devices/system/cpu/cpu%d/topology/thread_siblings_list", cpus[i]);
-    input = fopen(input_file, "r");
-    if(input == NULL)
-    {
-      perror("fopen");
-      exit(EXIT_FAILURE);
-    }
-    char* line = NULL;
-    size_t len;
-    // Get the list of SMT on the cpu cpus[i]
-    // Format gives list of PU separated by commas
-    if(getline(&line, &len, input) == -1)
-    {
-      perror("getline");
-      exit(EXIT_FAILURE);
-    }
+  int* phys_cpus = eliminate_hyperthreads(num_cpus, cpus, &nb_phys_cpus);
 
-    // We are only interested by the first PU in the list,
-    // so find the 1st occurence of the comma
-    char* delim = strpbrk(line, ",");
-    if(delim != NULL)
-    {
-      // Ends the line by filling it with '\0'
-      // and read the value before ',' symbol
-      *delim = '\0';
-    }
-
-    // Convert into integer
-    int cur_cpu = atoi(line);
-
-    // if cur_cpu has already been set (false in smt array), then continue
-    // Else, set the pu to true
-    if(!smt[cur_cpu] && cur_cpu >= 0 && cur_cpu < CPU_SETSIZE)
-    {
-      nb_phys_cpus++;
-      smt[cur_cpu] = true;
-    }
-    fclose(input);
-    if(line != NULL)
-    {
-      free(line);
-    }
-  }
-
-  int *phys_cpus = (int*) malloc(sizeof(int) * nb_phys_cpus);
-  li = 0;
-  for(int i = 0; i < CPU_SETSIZE; ++i)
-  {
-    if(smt[i])
-    {
-      phys_cpus[li] = i;
-      li++;
-    }
-  }
-  free(smt);
   free(cpus);
 
   num_cpus = nb_phys_cpus;
@@ -318,7 +346,7 @@ usage:
     }
   }
 
-  if (!gnuplot && !csvplot)
+  if (!gnuplot && !csvplot && !jsonplot)
   {
     fprintf(stdout, " %*s", 4, "CPU");
     for (int i = 0; i < num_cpus; ++i)
@@ -371,7 +399,15 @@ usage:
   if(csvplot)
   {
     FILE* output;
-    output = fopen("c2clat.csv", "w");
+    if(out)
+    {
+      out = strcat(out, ".csv");
+      output = fopen(out, "w");
+    }
+    else
+    {
+      output = fopen("c2clat.csv", "w");
+    }
 
     for (int i = 0; i < num_cpus; ++i)
     {
@@ -389,6 +425,39 @@ usage:
     fclose(output);
   }
 
+  if(jsonplot)
+  {
+    FILE* fdout;
+    if(out)
+    {
+      out = strcat(out, ".json");
+      fdout = fopen(out, "w");
+    }
+    else
+    {
+      fdout = fopen("c2clat.json", "w");
+    }
+
+		if(!fdout)
+		{
+			perror("fopen");
+			return 1;
+    }
+
+		fprintf(fdout, "{");
+
+    for (int i = 0; i < num_cpus; ++i)
+    {
+			fprintf(fdout, "\"%d\" : {\n", i);
+      for (int j = 0; j < num_cpus; ++j)
+      {
+				fprintf(fdout, "\"%d\" : %g%s\n", j, 1E9*data[i * num_cpus + j], j < (num_cpus - 1)?",":"");
+      }
+			fprintf(fdout, "}%s\n", i < (num_cpus - 1)?",":"");
+    }
+		fprintf(fdout, "}");
+		fclose(fdout);
+  }
 
   free(cpus);
   free(data);
