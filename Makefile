@@ -1,6 +1,8 @@
 CC=gcc
 CFLAGS=-O3 -Wall -DNDEBUG
+CFLAGS+=`pkg-config --cflags numa`
 LDFLAGS=-lnuma -pthread
+LDFLAGS+=`pkg-config --libs numa`
 
 PGR=c2clat
 
