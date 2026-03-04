@@ -36,6 +36,9 @@
 #include <numa.h>
 #include <numaif.h>
 
+#include <stdatomic.h>
+#include <stdalign.h>
+
 typedef struct timespec struct_time;
 
 #define gettime(t) clock_gettime(CLOCK_MONOTONIC_RAW, t)
@@ -159,6 +162,8 @@ typedef struct {
   uint64_t *b;
   int nsamples;
   int cpu;
+  bool preheat;
+  bool sync;
 } thread_args;
 
 void* thread_function(void* args)
@@ -166,17 +171,50 @@ void* thread_function(void* args)
   thread_args *cur_args = (thread_args*)args;
   int cpu = cur_args->cpu;
   int nsamples = cur_args->nsamples;
-  uint64_t* a = cur_args->a;
-  uint64_t* b = cur_args->b;
+  uint64_t* a = cur_args->a; // btest1
+  uint64_t* b = cur_args->b; // btest2
+  bool sync_atomics = cur_args->sync;
+  bool preheat = cur_args->preheat;
 
   pinThread(cpu);
+
+  if (preheat) {
+    struct timespec init;
+    clock_gettime(CLOCK_MONOTONIC, &init);
+
+    while (1) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+
+        // Calcul de la différence en nanosecondes
+        uint64_t diff_ns = (now.tv_sec - init.tv_sec) * 1000000000UL + (now.tv_nsec - init.tv_nsec);
+        if (diff_ns >= 200000000)  // 200 ms en nanosecondes
+            break;
+    }
+}
+
   for (int m = 0; m < nsamples; ++m)
   {
-    for (uint64_t n = 0; n < 100; ++n)
+    if(!sync_atomics)
     {
-      while (__atomic_load_n(a, __ATOMIC_ACQUIRE) != n)
-        ;
-      __atomic_store_n(b, n, __ATOMIC_RELEASE);
+      for (uint64_t n = 0; n < 100; ++n)
+      {
+        while (__atomic_load_n(a, __ATOMIC_ACQUIRE) != n)
+          ;
+        __atomic_store_n(b, n, __ATOMIC_RELEASE);
+      }
+    }
+    else
+    {
+          while (__atomic_load_n(b, __ATOMIC_ACQUIRE) != 0);
+          __atomic_store_n(b, 1, __ATOMIC_RELEASE);
+
+          for (int n = 0; n < 100; ++n) {
+            int cmp;
+            do {
+              cmp = 2 * n;
+            } while (!__atomic_compare_exchange_n(a, &cmp, cmp + 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
+          }
     }
   }
 
@@ -191,12 +229,18 @@ int main(int argc, char *argv[])
   bool csvplot = false;
   bool jsonplot = false;
 	char *out = NULL;
+  // measure a sequence of synchronized atomic operations
+  bool sync_atomics = false;
+  bool preheat = true;
 
   int opt;
-  while ((opt = getopt(argc, argv, "pcjhs:o:")) != -1)
+  while ((opt = getopt(argc, argv, "pcjhs:o:wH")) != -1)
   {
     switch (opt)
     {
+      case 'H':
+        preheat = true;
+        break;
       case 'p':
         gnuplot = true;
         break;
@@ -209,6 +253,9 @@ int main(int argc, char *argv[])
         break;
       case 's':
         nsamples = atoi(optarg);
+        break;
+      case 'w':
+        sync_atomics = true;
         break;
       case 'h':
         goto usage;
@@ -225,12 +272,13 @@ int main(int argc, char *argv[])
   {
 usage:
     fprintf(stdout, "c2clat 2.0.0\n");
-    fprintf(stdout, "usage: c2clat\n\t[-j generate json output]\n\t[-c generate csv output]\n\t[-h print this help]\n\t[-p plot with gnuplot]\n\t[-s number_of_samples]\n\t[-o output file without extension]\n");
+    fprintf(stdout, "usage: c2clat\n\t[-j generate json output]\n\t[-c generate csv output]\n\t[-h print this help]\n\t[-p plot with gnuplot]\n\t[-s number_of_samples]\n\t[-o output file without extension]\n\t[-H to preheat each core for 200ms before measuring]\n\t[-w use sequence of synchronized atomic operations]");
     fprintf(stdout, "\nPlot results using gnuplot:\n");
     fprintf(stdout, "c2clat -p | gnuplot -p\n");
     fprintf(stdout, "\nPlot results using csv:\n");
     fprintf(stdout, "c2clat -c && ./plot_heapmap_c2c.py\n");
     fprintf(stdout, "c2clat -j && ./plot_json.py -i c2clat.json -o c2clat.pdf\n");
+
     exit(EXIT_SUCCESS);
   }
 
@@ -310,6 +358,8 @@ usage:
       args->b = btest2;
       args->nsamples = nsamples;
       args->cpu = cpus[i];
+      args->preheat = preheat;
+      args->sync = sync_atomics;
 
       pthread_t thread_i;
       if(pthread_create (& thread_i, NULL, thread_function, args) != 0)
@@ -322,15 +372,50 @@ usage:
       double rtt = 0.;
 
       pinThread(cpus[j]);
+
+      if (preheat) {
+        struct timespec init;
+        clock_gettime(CLOCK_MONOTONIC, &init);
+
+        while (1) {
+            struct timespec now;
+            clock_gettime(CLOCK_MONOTONIC, &now);
+
+            // Calcul de la différence en nanosecondes
+            uint64_t diff_ns = (now.tv_sec - init.tv_sec) * 1000000000UL + (now.tv_nsec - init.tv_nsec);
+            if (diff_ns >= 200000000)  // 200 ms en nanosecondes
+                break;
+        }
+      }
+
       for (int m = 0; m < nsamples; ++m)
       {
         *btest1 = *btest2 = -1;
-        double ts1 = get_elapsedtime();
-        for (uint64_t n = 0; n < 100; ++n)
+        double ts1;
+        if(!sync_atomics)
         {
-          __atomic_store_n(btest1, n, __ATOMIC_RELEASE);
-          while (__atomic_load_n(btest2, __ATOMIC_ACQUIRE) != n)
-            ;
+          ts1 = get_elapsedtime();
+          for (uint64_t n = 0; n < 100; ++n)
+          {
+            __atomic_store_n(btest1, n, __ATOMIC_RELEASE);
+            while (__atomic_load_n(btest2, __ATOMIC_ACQUIRE) != n)
+              ;
+          }
+        }
+        else
+        {
+          __atomic_store_n(btest2, 0, __ATOMIC_RELEASE);
+          while (__atomic_load_n(btest2, __ATOMIC_ACQUIRE) == 0);
+          __atomic_store_n(btest2, -1, __ATOMIC_RELEASE);
+
+          ts1 = get_elapsedtime();
+          for (int n = 0; n < 100; ++n) {
+              int cmp;
+              do {
+                  cmp = 2 * n - 1;
+              } while (!__atomic_compare_exchange_n(btest1, &cmp, cmp + 1, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE));
+          }
+          while (__atomic_load_n(btest1, __ATOMIC_ACQUIRE) != 199);
         }
         double ts2 = get_elapsedtime();
         rtt = ts2 - ts1;
