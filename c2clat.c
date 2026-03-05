@@ -323,19 +323,24 @@ usage:
 
       if(i == j) continue;
 
-      uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+      const size_t alignment = 64;
+      uint64_t *btest1 = mmap ( NULL, sizeof(uint64_t) + alignment, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
       if(btest1 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
       }
+      // On calcule l'adresse alignée
+      btest1 = (uint64_t *)(((uintptr_t)btest1 + alignment - 1) & ~(alignment - 1));
 
-      uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
+
+      uint64_t *btest2 = mmap ( NULL, sizeof(uint64_t) + alignment, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0, 0 );
       if(btest2 == MAP_FAILED)
       {
         fprintf(stderr, "Error: unable to allocate %ld size of memory at line %d\n", sizeof(uint64_t), __LINE__);
         return EXIT_FAILURE;
       }
+      btest2 = (uint64_t *)(((uintptr_t)btest2 + alignment - 1) & ~(alignment - 1));
 
       if(pinMemory((void*)btest2, sizeof(uint64_t), cpus[i]) != 0)
       {
@@ -425,8 +430,8 @@ usage:
 
       data[i * num_cpus + j] = (rtt / 2 / 100);
 
-      munmap(btest1, sizeof(uint64_t));
-      munmap(btest2, sizeof(uint64_t));
+      munmap(btest1, sizeof(uint64_t) + alignment);
+      munmap(btest2, sizeof(uint64_t) + alignment);
       free(args);
     }
   }
